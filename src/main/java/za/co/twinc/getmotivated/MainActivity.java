@@ -17,13 +17,13 @@ import android.os.Build;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.v4.widget.SwipeRefreshLayout;
+import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.SpannedString;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -113,7 +113,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // Load favorite quotes
-        favs = new LinkedHashSet<String>();
+        favs = new LinkedHashSet<>();
         Set<String> prefSet = mainLog.getStringSet("favorites", null);
         if (prefSet != null)
             favs.addAll(prefSet);
@@ -140,7 +140,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onBackPressed(){
         if (viewingFavs){
-            getSupportActionBar().setTitle(R.string.app_name);
+            ActionBar actionBar = getSupportActionBar();
+            if (actionBar!=null)
+                actionBar.setTitle(R.string.app_name);
 
             // Load base quotes
             SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
@@ -204,7 +206,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showFavorites(){
-        getSupportActionBar().setTitle(R.string.favorites);
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar!=null)
+            actionBar.setTitle(R.string.favorites);
 
         values = new String[favs.size()];
         int i = 0;
@@ -443,7 +447,8 @@ public class MainActivity extends AppCompatActivity {
                         // TODO: Remove code duplication of below functionality
                         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                         ClipData clip = ClipData.newPlainText("Motivation", shareText);
-                        clipboard.setPrimaryClip(clip);
+                        if (clipboard != null)
+                            clipboard.setPrimaryClip(clip);
                         startActivity(Intent.createChooser(sharingIntent,
                                 getResources().getString(R.string.motivation_share)));
                         Toast.makeText(getApplicationContext(), getResources().getString(R.string.motivation_copied), Toast.LENGTH_LONG).show();
@@ -486,6 +491,7 @@ public class MainActivity extends AppCompatActivity {
         new GetMotivation().execute(quoteURL);
     }
 
+    @SuppressLint("StaticFieldLeak")
     private class GetMotivation extends AsyncTask<String , Void ,String> {
         String server_response;
 
@@ -574,22 +580,21 @@ public class MainActivity extends AppCompatActivity {
     private class MotivationReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
+            // We can only check for Facebook on SDK 22 and above
             if (Build.VERSION.SDK_INT >= 22) {
-                Log.d("INFORMATION", "Received intent after selection: " + intent.getExtras().get(Intent.EXTRA_CHOSEN_COMPONENT));
                 ComponentName target = intent.getParcelableExtra(Intent.EXTRA_CHOSEN_COMPONENT);
                 if (target != null) {
                     if (target.getClassName().contains("facebook")) {
                         //We cannot send text to Facebook, so copy motivation to clipboard
                         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
                         ClipData clip = ClipData.newPlainText("Motivation", intent.getStringExtra("Motivation"));
-                        clipboard.setPrimaryClip(clip);
+                        if (clipboard != null)
+                            clipboard.setPrimaryClip(clip);
                         Toast.makeText(context, context.getResources().getString(R.string.motivation_copied),
                                 Toast.LENGTH_LONG).show();
                     }
                 }
             }
-            else
-                Log.d("ERROR","Error: Facebook check not possible");
         }
     }
 
