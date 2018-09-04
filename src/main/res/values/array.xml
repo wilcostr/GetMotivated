@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="starting_quotes">
+        <item>Prejudice is a burden that confuses the past, threatens the future and renders the present inaccessible. \n- Maya Angelou</item>
+        <item>The pessimist sees difficulty in every opportunity. The optimist sees the opportunity in every difficulty. \n- Winston Churchill</item>
+        <item>The most precious gift we can offer anyone is our attention. When mindfulness embraces those we love, they will bloom like flowers. \n- Thich Nhat Hanh</item>
+        <item>Patience is a virtue but you will never ever accomplish anything if you don\'t exercise action over patience. \n- Byron Pulsifer</item>
+        <item>I don\'t believe in failure. It\'s not failure if you enjoyed the process. \n- Oprah Winfrey</item>
+    </string-array>
+</resources>

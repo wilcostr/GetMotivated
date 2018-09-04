@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">цитаты о жизни</string>
+
+    <string name="motivation_default">Жизнь и сновидения — страницы одной и той же книги.</string>
+    <string name="motivation_share">делиться</string>
+    <string name="motivation_next">следующий</string>
+    <string name="motivation_copied">Скопированный текст</string>
+
+    <string name="share">делиться</string>
+    <string name="feedback">Обратная связь</string>
+    <string name="refresh">освежать</string>
+    <string name="feedback_title">Обратная связь</string>
+    <string name="feedback_msg">Оцените, нравится ли вам приложение
+    </string>
+    <string name="btn_close">закрывать</string>
+    <string name="btn_rate_app">Оценить приложение</string>
+    <string name="btn_contact_us">Эл. адрес</string>
+    <string name="txt_no_email">Не установлено электронное письмо</string>
+
+    <string name="why_ads">Убрать рекламу</string>
+    <string name="ads_msg">Введите промо-код
+    </string>
+    <string name="welcome_premium">Добро пожаловать в премиум</string>
+    <string name="motivation_favorite">Избранные</string>
+    <string name="favorites">Избранные</string>
+
+</resources>
