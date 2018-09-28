@@ -1,6 +1,9 @@
 package za.co.twinc.getmotivated;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
@@ -11,6 +14,18 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.media.MediaScannerConnection;
+import android.os.Environment;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.content.ContextCompat;
+import android.text.TextPaint;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
@@ -21,9 +36,11 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.SpannedString;
+import android.text.StaticLayout;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -32,6 +49,7 @@ import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -43,20 +61,26 @@ import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.InterstitialAd;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Random;
 import java.util.Set;
 
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final int MY_PERMISSION_REQUEST = 123;
+    public static final String PRIMARY_NOTIF_CHANNEL = "default";
     private final String MAIN_PREFS = "main_app_prefs";
-    private AdView adView;
 
     private final int DISPLAY_NUM = 5;
 
@@ -64,11 +88,14 @@ public class MainActivity extends AppCompatActivity {
     private Set<String> favs;
 
     private boolean viewingFavs;
+    private Bitmap tempBmp;
+    NotificationManager mNotifyMgr;
 
     private MySimpleArrayAdapter adapter;
     private ListView listview;
     private SwipeRefreshLayout refreshLayout;
 
+    private AdView adView;
     private InterstitialAd mInterstitialAd;
 
 
@@ -92,6 +119,8 @@ public class MainActivity extends AppCompatActivity {
         // Initialise interstitial ad
         mInterstitialAd = new InterstitialAd(this);
         mInterstitialAd.setAdUnitId(getString(R.string.ad_unit_interstitial));
+
+        //TODO: Load add here, but save the time and display every 2.5min
         mInterstitialAd.loadAd(new AdRequest.Builder()
                 .addTestDevice("5F2995EE0A8305DEB4C48C77461A7362")
                 .build());
@@ -110,6 +139,14 @@ public class MainActivity extends AppCompatActivity {
                     adView.setVisibility(View.VISIBLE);
                 }
             });
+        }
+
+        // Create notification channel. No problem if already created previously
+        mNotifyMgr = (NotificationManager)getApplicationContext().getSystemService(NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    PRIMARY_NOTIF_CHANNEL, PRIMARY_NOTIF_CHANNEL, NotificationManager.IMPORTANCE_LOW);
+            mNotifyMgr.createNotificationChannel(channel);
         }
 
         // Load favorite quotes
@@ -228,8 +265,8 @@ public class MainActivity extends AppCompatActivity {
         if (mainLog.getBoolean("premium", false))
             return;
 
-        // Give 5 ad-free refreshes
-        if (mainLog.getInt("refreshCount",0)<4)
+        // Give 3 ad-free screens
+        if (mainLog.getInt("refreshCount",0)<2)
             return;
 
         if (mInterstitialAd.isLoaded()) {
@@ -244,6 +281,9 @@ public class MainActivity extends AppCompatActivity {
             refreshLayout.setRefreshing(false);
             return;
         }
+        // TODO: This is still broken
+        // Scroll to 0 first, to avoid it not being done
+        listview.smoothScrollToPosition(0);
         loadOrShowAd();
 
         // Increment the stored counter
@@ -252,7 +292,6 @@ public class MainActivity extends AppCompatActivity {
         editor.putInt("refreshCount", mainLog.getInt("refreshCount", 0)+1);
         editor.apply();
 
-        listview.smoothScrollToPosition(0);
         refreshLayout.setRefreshing(true);
         new Handler().postDelayed(new Runnable() {
             @Override
@@ -405,12 +444,16 @@ public class MainActivity extends AppCompatActivity {
             this.values = values;
         }
 
+        final Random random = new Random();
+
         @NonNull
         @Override
         public View getView(int position, View convertView, @NonNull ViewGroup container) {
             if (convertView == null) {
                 convertView = getLayoutInflater().inflate(R.layout.motivation_card, container, false);
             }
+
+            //TODO: Remove textView
 
             final TextView textView = convertView.findViewById(R.id.textView_motivation);
             SpannableStringBuilder str = new SpannableStringBuilder(values[position]);
@@ -419,6 +462,56 @@ public class MainActivity extends AppCompatActivity {
                 str.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
                         separatorIdx, str.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             textView.setText(str);
+
+
+            textView.setVisibility(View.GONE);
+
+
+            // Get a handle to the image
+            ImageView imageView = convertView.findViewById(R.id.motivation_image);
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inMutable = true;
+
+            final Bitmap bitmap;
+            Bitmap bitmap1;
+            try {
+                @SuppressLint("DefaultLocale") Field drawableField =
+                        R.drawable.class.getField(String.format("bg%03d", random.nextInt(64)));
+                bitmap1 = BitmapFactory.decodeResource(getResources(),
+                        drawableField.getInt(R.drawable.class), options);
+            }
+            catch (Exception e){
+                bitmap1 = BitmapFactory.decodeResource(getResources(), R.drawable.bg001, options);
+            }
+            bitmap = bitmap1;
+            final Canvas canvas = new Canvas(bitmap);
+
+            // Create text layout
+            TextPaint textPaint = new TextPaint();
+            textPaint.setColor(Color.WHITE);
+            textPaint.setTextSize(55);
+            int textPadding = 12;
+            StaticLayout staticLayout = new StaticLayout(str, textPaint, canvas.getWidth()-2*textPadding,
+                    Layout.Alignment.ALIGN_CENTER, 1.0f, 0.0f, false);
+
+            // Extract text relative position parameters. Lift text slightly above centre
+            int textHeight = staticLayout.getHeight() + 2*textPadding;
+            int textTop = ((canvas.getHeight() - textHeight)/2) - 3*textPadding;
+
+            // Draw transparent block behind text
+            Paint blockPaint = new Paint();
+            blockPaint.setColor(Color.BLACK);
+            blockPaint.setAlpha(92);
+            canvas.drawRect(0, textTop, canvas.getWidth(), textTop+textHeight, blockPaint);
+
+            // Draw the text layout
+            canvas.save();
+            canvas.translate(textPadding, textTop+textPadding);
+            staticLayout.draw(canvas);
+            canvas.restore();
+
+            // Set imageView
+            imageView.setImageBitmap(bitmap);
 
             // Share button
             ImageButton shareButton = convertView.findViewById(R.id.button_share_motivation);
@@ -458,10 +551,9 @@ public class MainActivity extends AppCompatActivity {
 
             // Favorite button
             MaterialFavoriteButton favoriteButton = convertView.findViewById(R.id.button_favorite_motivation);
-
             // Flip button according to status of current quote
             favoriteButton.setFavorite(favs.contains(textView.getText().toString()));
-
+            // onFavoriteClick
             favoriteButton.setOnFavoriteChangeListener(new MaterialFavoriteButton.OnFavoriteChangeListener() {
                 @Override
                 public void onFavoriteChanged(MaterialFavoriteButton buttonView, boolean favorite) {
@@ -477,10 +569,166 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
+            // Download button
+            ImageButton downloadButton = convertView.findViewById(R.id.button_download);
+            downloadButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Bitmap savedBitmap = bitmap.copy(bitmap.getConfig(), true);
+                    addTagToImage(canvas);
+                    if (Build.VERSION.SDK_INT >= 23){
+                        // Must first confirm write permission
+                        checkWritePermissionAndSaveImage(bitmap);
+                    }
+                    else {
+                        saveImage(bitmap);
+                    }
+                    canvas.drawBitmap(savedBitmap,0,0,null);
+                }
+            });
+
             return convertView;
         }
 
         public int getCount(){ return values.length; }
+    }
+
+    private void addTagToImage(Canvas canvas){
+        // Draw Google Play + app tag
+        Bitmap gm_tag = BitmapFactory.decodeResource(getResources(), R.drawable.gm_tag);
+        // 50% transparant block
+        Paint blockPaint = new Paint();
+        blockPaint.setColor(Color.BLACK);
+        blockPaint.setAlpha(92);
+        blockPaint.setAlpha(128);
+        if (Build.VERSION.SDK_INT >= 21) {
+            canvas.drawRoundRect(canvas.getWidth() - gm_tag.getWidth(),
+                    canvas.getHeight() - gm_tag.getHeight(),
+                    canvas.getWidth(),
+                    canvas.getHeight(),
+                    6,
+                    6,
+                    blockPaint);
+        }
+        else {
+            canvas.drawRect(canvas.getWidth() - gm_tag.getWidth(),
+                    canvas.getHeight() - gm_tag.getHeight(),
+                    canvas.getWidth(),
+                    canvas.getHeight(),
+                    blockPaint);
+        }
+
+        canvas.drawBitmap(gm_tag,
+                canvas.getWidth() - gm_tag.getWidth(),
+                canvas.getHeight() - gm_tag.getHeight(),
+                null
+        );
+    }
+
+    private void checkWritePermissionAndSaveImage(Bitmap bitmap){
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // Permission is not granted
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    MY_PERMISSION_REQUEST);
+
+            // Keep the bitmap pointer for saving after permission has been granted
+            tempBmp = bitmap;
+
+        } else {
+            // Permission has already been granted
+            saveImage(bitmap);
+        }
+    }
+
+    private void saveImage(Bitmap bitmap){
+        // TODO: Extract string resources
+        // Return if external storage not available
+        String state = Environment.getExternalStorageState();
+        if (!Environment.MEDIA_MOUNTED.equals(state)) {
+            Toast.makeText(getApplicationContext(), "External storage not available",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        // Get the directory for the user's public pictures directory.
+        File storageDir = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_PICTURES), "GetMotivated");
+        if (!storageDir.exists()) {
+            storageDir.mkdirs();
+        }
+
+        try {
+            File imageFile = File.createTempFile("GetMotivated",".jpg", storageDir);
+            OutputStream os = new FileOutputStream(imageFile);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 75, os);
+            os.close();
+
+            Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+            Uri contentUri = Uri.fromFile(imageFile);
+            mediaScanIntent.setData(contentUri);
+            sendBroadcast(mediaScanIntent);
+
+            MediaScannerConnection.scanFile(this, new String[]{imageFile.getAbsolutePath()},
+                    new String[]{"image/jpeg"}, new MediaScannerConnection.OnScanCompletedListener() {
+                        @Override
+                        public void onScanCompleted(String s, Uri uri) {
+                            // Give a notification here
+
+                            // View image intent
+                            Intent imageIntent = new Intent(Intent.ACTION_VIEW)
+                                    .setDataAndType(uri, "image/*")
+                                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+                            // Give notification to open saved image
+                            NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(getApplicationContext(), PRIMARY_NOTIF_CHANNEL)
+                                    .setContentTitle(getApplicationContext().getString(R.string.app_name))
+                                    .setContentText("Tap to open your image")
+                                    .setSmallIcon(R.mipmap.gm_icon)
+                                    .setLargeIcon(BitmapFactory.decodeResource(getApplicationContext().getResources(), R.mipmap.gm_icon))
+                                    .setContentIntent(PendingIntent.getActivity(getApplicationContext(), 0, imageIntent, 0))
+                                    .setAutoCancel(true)
+                                    .setVibrate(new long[]{1000, 200})
+                                    .setPriority(NotificationCompat.PRIORITY_LOW);
+
+                            //        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP)
+                            //            notiBuilder.setSmallIcon(R.drawable.nine_png);
+
+                            // Issue notification
+                            if (mNotifyMgr != null)
+                                mNotifyMgr.notify(0, notiBuilder.build());
+                        }
+                    });
+
+            Toast.makeText(getApplicationContext(), "Image downloaded", Toast.LENGTH_LONG).show();
+
+        } catch (IOException e) {
+            // Unable to create file, likely because external storage is
+            // not currently mounted.
+            e.printStackTrace();
+            Toast.makeText(getApplicationContext(), "Failed to download", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String permissions[], @NonNull int[] grantResults) {
+        switch (requestCode) {
+            case MY_PERMISSION_REQUEST: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    if (tempBmp != null)
+                        saveImage(tempBmp);
+                } else {
+                    //TODO: String extraction
+                    Toast.makeText(getApplicationContext(), "Saving images requires this permission", Toast.LENGTH_LONG).show();
+                }
+            }
+        }
     }
 
     private void loadNewMotivation(){

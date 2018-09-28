@@ -30,5 +30,7 @@
     </string>
     <string name="welcome_premium">Welcome to the premium experience</string>
     <string name="wrong_code">That is not a valid promo code</string>
+    <string name="motivation_content_description" translatable="false">Motivation Image</string>
+    <string name="motivation_download">Download Image</string>
 
 </resources>

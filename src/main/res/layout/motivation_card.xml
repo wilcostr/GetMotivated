@@ -19,6 +19,14 @@
             android:padding="10dp"
             >
 
+            <ImageView
+                android:id="@+id/motivation_image"
+                android:contentDescription="@string/motivation_content_description"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:src="@drawable/bg001" />
+
             <TextView
                 android:id="@+id/textView_motivation"
                 android:text="@string/motivation_default"
@@ -33,6 +41,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_horizontal">
+
+                <ImageButton
+                    android:id="@+id/button_download"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/motivation_download"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="6dp"
+                    android:src="@drawable/button_download"/>
 
                 <ImageButton
                     android:id="@+id/button_share_motivation"

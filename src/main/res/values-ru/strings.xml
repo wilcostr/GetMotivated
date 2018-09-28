@@ -24,5 +24,6 @@
     <string name="welcome_premium">Добро пожаловать в премиум</string>
     <string name="motivation_favorite">Избранные</string>
     <string name="favorites">Избранные</string>
+    <string name="wrong_code">инвалид</string>
 
 </resources>
