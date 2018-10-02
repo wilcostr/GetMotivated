@@ -75,6 +75,8 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 
+import static com.google.android.gms.common.util.ArrayUtils.contains;
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -82,7 +84,9 @@ public class MainActivity extends AppCompatActivity {
     public static final String PRIMARY_NOTIF_CHANNEL = "default";
     private final String MAIN_PREFS = "main_app_prefs";
 
-    private final int DISPLAY_NUM = 5;
+    private final int   DISPLAY_NUM = 5;
+    private int         IMAGE_NUM = 64;
+    private int         IMAGE_STACK_SIZE = 30;
 
     private String[] values;
     private Set<String> favs;
@@ -149,6 +153,8 @@ public class MainActivity extends AppCompatActivity {
             mNotifyMgr.createNotificationChannel(channel);
         }
 
+        viewingFavs = false;
+
         // Load favorite quotes
         favs = new LinkedHashSet<>();
         Set<String> prefSet = mainLog.getStringSet("favorites", null);
@@ -161,12 +167,29 @@ public class MainActivity extends AppCompatActivity {
 
         // Load base quotes
         values = getResources().getStringArray(R.array.starting_quotes);
-        // Load previous set
+
         if (mainLog.getInt("refreshCount", 0) != 0) {
+            // Load previous set
             for (int i = 1; i <= DISPLAY_NUM; i++)
                 values[i - 1] = mainLog.getString("oldQuote" + i, "quote not loaded");
         }
-        viewingFavs = false;
+        else {
+            // Load some images only if this is still the first set of quotes
+            // This might change the image for fixed quotes, but will only happy once
+            // and might entice repeated use...
+            loadNewImages();
+        }
+
+        if (favs.size() != 0){
+            for (String object : favs){
+                if (mainLog.getInt(object.substring(4,14), 0) == 0){
+                    Random r = new Random();
+                    SharedPreferences.Editor editor = mainLog.edit();
+                    editor.putInt(object.substring(4,14), r.nextInt(IMAGE_NUM+1));
+                    editor.apply();
+                }
+            }
+        }
 
         // Initialise list of quotes
         listview = findViewById(R.id.listView);
@@ -197,14 +220,14 @@ public class MainActivity extends AppCompatActivity {
             super.onBackPressed();
     }
 
-    @Override
-    protected void onResume(){
-        // Load next set of motivation
-        SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
-        if (mainLog.getInt("loadCount", 0) < DISPLAY_NUM)
-            loadNewMotivation();
-        super.onResume();
-    }
+//    @Override
+//    protected void onResume(){
+//        // Load next set of motivation
+//        SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
+//        if (mainLog.getInt("loadCount", 0) < DISPLAY_NUM)
+//            loadNewMotivation();
+//        super.onResume();
+//    }
 
 
     @Override
@@ -292,16 +315,19 @@ public class MainActivity extends AppCompatActivity {
         editor.putInt("refreshCount", mainLog.getInt("refreshCount", 0)+1);
         editor.apply();
 
+        // Select images for the new quotes
+        loadNewImages();
+
         refreshLayout.setRefreshing(true);
         new Handler().postDelayed(new Runnable() {
             @Override
             public void run() {
-                displayQuotes();
+                displayNewQuotes();
             }
         },2500);
     }
 
-    private void displayQuotes(){
+    private void displayNewQuotes(){
         SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
         SharedPreferences.Editor editor = mainLog.edit();
 
@@ -310,7 +336,7 @@ public class MainActivity extends AppCompatActivity {
             new Handler().postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    displayQuotes();
+                    displayNewQuotes();
                 }
             },5000);
             return;
@@ -318,15 +344,41 @@ public class MainActivity extends AppCompatActivity {
 
         for (int i = 1; i <= DISPLAY_NUM; i++) {
             values[i - 1] = mainLog.getString("quote" + i, "quote not loaded");
+            // Save the currently visible quotes as oldQuote[1..5]
             editor.putString("oldQuote"+i, values[i-1]);
         }
         adapter.notifyDataSetChanged();
         refreshLayout.setRefreshing(false);
         editor.putInt("loadCount", 0);
+
         editor.apply();
         loadNewMotivation();
     }
 
+
+    private void loadNewImages(){
+        // Create a stack of images that are not allowed to repeat
+        SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
+        int stack [] = new int[IMAGE_STACK_SIZE];
+        for (int i = 0; i < IMAGE_STACK_SIZE; i++){
+            stack[i] = mainLog.getInt("image"+i, 0);
+        }
+
+        // Select a random background image
+        Random r = new Random();
+        int refreshCount = mainLog.getInt("refreshCount",0);
+        SharedPreferences.Editor editor = mainLog.edit();
+        for (int i = 0; i < DISPLAY_NUM; i++){
+            int newImage = r.nextInt(IMAGE_NUM+1);
+            while (contains(stack, newImage)){
+                newImage = r.nextInt(IMAGE_NUM+1);
+            }
+            int imagePosition = (DISPLAY_NUM*refreshCount + i)%IMAGE_STACK_SIZE;
+            stack[imagePosition] = newImage;
+            editor.putInt("image"+imagePosition, newImage);
+        }
+        editor.apply();
+    }
 
     private void whyAds(){
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
@@ -444,8 +496,6 @@ public class MainActivity extends AppCompatActivity {
             this.values = values;
         }
 
-        final Random random = new Random();
-
         @NonNull
         @Override
         public View getView(int position, View convertView, @NonNull ViewGroup container) {
@@ -453,18 +503,13 @@ public class MainActivity extends AppCompatActivity {
                 convertView = getLayoutInflater().inflate(R.layout.motivation_card, container, false);
             }
 
-            //TODO: Remove textView
-
-            final TextView textView = convertView.findViewById(R.id.textView_motivation);
+            // Build the formatted String
             SpannableStringBuilder str = new SpannableStringBuilder(values[position]);
             int separatorIdx = values[position].lastIndexOf('-');
             if (separatorIdx > -1)
                 str.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
                         separatorIdx, str.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            textView.setText(str);
-
-
-            textView.setVisibility(View.GONE);
+            final String motivationText = str.toString();
 
 
             // Get a handle to the image
@@ -472,11 +517,22 @@ public class MainActivity extends AppCompatActivity {
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inMutable = true;
 
+            // Get the background image
+            final int displayImage;
+            SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
+            if (viewingFavs){
+                displayImage = mainLog.getInt(motivationText.substring(4,14), 2);
+            }
+            else {
+                int refreshCount = mainLog.getInt("refreshCount", 0);
+                displayImage = mainLog.getInt("image" + (DISPLAY_NUM * refreshCount + position) % IMAGE_STACK_SIZE, 1);
+            }
+
             final Bitmap bitmap;
             Bitmap bitmap1;
             try {
                 @SuppressLint("DefaultLocale") Field drawableField =
-                        R.drawable.class.getField(String.format("bg%03d", random.nextInt(64)));
+                        R.drawable.class.getField(String.format("bg%03d", displayImage));
                 bitmap1 = BitmapFactory.decodeResource(getResources(),
                         drawableField.getInt(R.drawable.class), options);
             }
@@ -520,14 +576,12 @@ public class MainActivity extends AppCompatActivity {
                 public void onClick(View view) {
                     Intent sharingIntent = new Intent(android.content.Intent.ACTION_SEND);
                     sharingIntent.setType("text/plain");
-                    SpannedString str = (SpannedString) textView.getText();
-                    String shareText = str.toString();
-                    sharingIntent.putExtra(android.content.Intent.EXTRA_TEXT, shareText);
+                    sharingIntent.putExtra(android.content.Intent.EXTRA_TEXT, motivationText);
 
                     if (Build.VERSION.SDK_INT >= 22) {
                         // Share through a BroadcastReceiver to detect if sharing to Facebook
                         Intent receiverIntent = new Intent(getApplicationContext(), MotivationReceiver.class);
-                        receiverIntent.putExtra("Motivation",shareText);
+                        receiverIntent.putExtra("Motivation", motivationText);
                         PendingIntent pendingIntent = PendingIntent.getBroadcast(getApplicationContext(),
                                 0, receiverIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
@@ -539,7 +593,7 @@ public class MainActivity extends AppCompatActivity {
                         // We cannot detect if Facebook was selected, so copy motivation to clipboard
                         // TODO: Remove code duplication of below functionality
                         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                        ClipData clip = ClipData.newPlainText("Motivation", shareText);
+                        ClipData clip = ClipData.newPlainText("Motivation", motivationText);
                         if (clipboard != null)
                             clipboard.setPrimaryClip(clip);
                         startActivity(Intent.createChooser(sharingIntent,
@@ -551,23 +605,26 @@ public class MainActivity extends AppCompatActivity {
 
             // Favorite button
             MaterialFavoriteButton favoriteButton = convertView.findViewById(R.id.button_favorite_motivation);
-            // Flip button according to status of current quote
-            favoriteButton.setFavorite(favs.contains(textView.getText().toString()));
             // onFavoriteClick
             favoriteButton.setOnFavoriteChangeListener(new MaterialFavoriteButton.OnFavoriteChangeListener() {
                 @Override
                 public void onFavoriteChanged(MaterialFavoriteButton buttonView, boolean favorite) {
-                    if (favorite)
-                        favs.add(textView.getText().toString());
-                    else
-                        favs.remove(textView.getText().toString());
-
                     SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
                     SharedPreferences.Editor editor = mainLog.edit();
+                    if (favorite) {
+                        favs.add(motivationText);
+                        editor.putInt(motivationText.substring(4,14), displayImage);
+                    }
+                    else {
+                        favs.remove(motivationText);
+                        editor.remove(motivationText.substring(4,14));
+                    }
                     editor.putStringSet("favorites", favs);
                     editor.apply();
                 }
             });
+            // Flip button according to status of current quote
+            favoriteButton.setFavorite(favs.contains(motivationText));
 
             // Download button
             ImageButton downloadButton = convertView.findViewById(R.id.button_download);
