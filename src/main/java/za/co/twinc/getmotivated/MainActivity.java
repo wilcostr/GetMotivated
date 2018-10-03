@@ -98,6 +98,7 @@ public class MainActivity extends AppCompatActivity {
     private MySimpleArrayAdapter adapter;
     private ListView listview;
     private SwipeRefreshLayout refreshLayout;
+    private Menu optionsMenu;
 
     private AdView adView;
     private InterstitialAd mInterstitialAd;
@@ -234,6 +235,7 @@ public class MainActivity extends AppCompatActivity {
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.option_menu, menu); //your file name
+        optionsMenu = menu;
         return super.onCreateOptionsMenu(menu);
     }
 
@@ -258,8 +260,21 @@ public class MainActivity extends AppCompatActivity {
                 refreshQuotes();
                 return true;
             case R.id.action_favorites:
+                ActionBar actionBar = getSupportActionBar();
+                if (actionBar != null)
+                    getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                item.setVisible(false);
+                optionsMenu.findItem(R.id.action_refresh).setVisible(false);
                 showFavorites();
                 return true;
+            case android.R.id.home:
+                actionBar = getSupportActionBar();
+                if (actionBar != null)
+                    actionBar.setDisplayHomeAsUpEnabled(false);
+                optionsMenu.findItem(R.id.action_favorites).setVisible(true);
+                optionsMenu.findItem(R.id.action_refresh).setVisible(true);
+                onBackPressed();
+
             default:
                 return super.onOptionsItemSelected(item);
         }
