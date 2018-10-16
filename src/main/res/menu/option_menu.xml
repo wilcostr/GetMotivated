@@ -18,17 +18,28 @@
 
     <item
         android:id="@+id/menu_share"
-        android:orderInCategory="111"
+        android:orderInCategory="112"
         android:title="@string/share"/>
 
     <item
         android:id="@+id/menu_feedback"
-        android:orderInCategory="112"
+        android:orderInCategory="111"
         android:title="@string/feedback"/>
 
     <item
         android:id="@+id/menu_why_ads"
         android:orderInCategory="113"
         android:title="@string/why_ads"/>
+
+    <item
+        android:id="@+id/menu_rate"
+        android:orderInCategory="114"
+        android:title="@string/btn_rate_app"/>
+
+    <item
+        android:id="@+id/menu_privacy_policy"
+        android:orderInCategory="115"
+        android:title="@string/privacy_policy"/>
+
 
 </menu>

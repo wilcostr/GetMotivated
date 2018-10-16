@@ -93,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean viewingFavs;
     private Bitmap tempBmp;
+    private int tempP;
     NotificationManager mNotifyMgr;
 
     private MySimpleArrayAdapter adapter;
@@ -202,8 +203,13 @@ public class MainActivity extends AppCompatActivity {
     public void onBackPressed(){
         if (viewingFavs){
             ActionBar actionBar = getSupportActionBar();
-            if (actionBar!=null)
+            if (actionBar!=null) {
                 actionBar.setTitle(R.string.app_name);
+                actionBar.setDisplayHomeAsUpEnabled(false);
+            }
+
+            optionsMenu.findItem(R.id.action_favorites).setVisible(true);
+            optionsMenu.findItem(R.id.action_refresh).setVisible(true);
 
             // Load base quotes
             SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
@@ -220,15 +226,6 @@ public class MainActivity extends AppCompatActivity {
         else
             super.onBackPressed();
     }
-
-//    @Override
-//    protected void onResume(){
-//        // Load next set of motivation
-//        SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
-//        if (mainLog.getInt("loadCount", 0) < DISPLAY_NUM)
-//            loadNewMotivation();
-//        super.onResume();
-//    }
 
 
     @Override
@@ -253,11 +250,19 @@ public class MainActivity extends AppCompatActivity {
             case R.id.menu_feedback:
                 feedback();
                 return true;
+            case R.id.menu_rate:
+                rateApp();
+                return true;
             case R.id.menu_why_ads:
                 whyAds();
                 return true;
             case R.id.action_refresh:
                 refreshQuotes();
+                return true;
+            case R.id.menu_privacy_policy:
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://sites.google.com/view/twincapps-privacypolicy/home"));
+                startActivity(browserIntent);
                 return true;
             case R.id.action_favorites:
                 ActionBar actionBar = getSupportActionBar();
@@ -268,11 +273,6 @@ public class MainActivity extends AppCompatActivity {
                 showFavorites();
                 return true;
             case android.R.id.home:
-                actionBar = getSupportActionBar();
-                if (actionBar != null)
-                    actionBar.setDisplayHomeAsUpEnabled(false);
-                optionsMenu.findItem(R.id.action_favorites).setVisible(true);
-                optionsMenu.findItem(R.id.action_refresh).setVisible(true);
                 onBackPressed();
 
             default:
@@ -589,32 +589,7 @@ public class MainActivity extends AppCompatActivity {
             shareButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    Intent sharingIntent = new Intent(android.content.Intent.ACTION_SEND);
-                    sharingIntent.setType("text/plain");
-                    sharingIntent.putExtra(android.content.Intent.EXTRA_TEXT, motivationText);
-
-                    if (Build.VERSION.SDK_INT >= 22) {
-                        // Share through a BroadcastReceiver to detect if sharing to Facebook
-                        Intent receiverIntent = new Intent(getApplicationContext(), MotivationReceiver.class);
-                        receiverIntent.putExtra("Motivation", motivationText);
-                        PendingIntent pendingIntent = PendingIntent.getBroadcast(getApplicationContext(),
-                                0, receiverIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-
-                        startActivity(Intent.createChooser(sharingIntent,
-                                getResources().getText(R.string.motivation_share),
-                                pendingIntent.getIntentSender()));
-                    }
-                    else{
-                        // We cannot detect if Facebook was selected, so copy motivation to clipboard
-                        // TODO: Remove code duplication of below functionality
-                        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                        ClipData clip = ClipData.newPlainText("Motivation", motivationText);
-                        if (clipboard != null)
-                            clipboard.setPrimaryClip(clip);
-                        startActivity(Intent.createChooser(sharingIntent,
-                                getResources().getString(R.string.motivation_share)));
-                        Toast.makeText(getApplicationContext(), getResources().getString(R.string.motivation_copied), Toast.LENGTH_LONG).show();
-                    }
+                    shareImage(canvas, bitmap);
                 }
             });
 
@@ -646,16 +621,7 @@ public class MainActivity extends AppCompatActivity {
             downloadButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    Bitmap savedBitmap = bitmap.copy(bitmap.getConfig(), true);
-                    addTagToImage(canvas);
-                    if (Build.VERSION.SDK_INT >= 23){
-                        // Must first confirm write permission
-                        checkWritePermissionAndSaveImage(bitmap);
-                    }
-                    else {
-                        saveImage(bitmap);
-                    }
-                    canvas.drawBitmap(savedBitmap,0,0,null);
+                    downloadImage(canvas, bitmap);
                 }
             });
 
@@ -664,6 +630,32 @@ public class MainActivity extends AppCompatActivity {
 
         public int getCount(){ return values.length; }
     }
+
+    private void downloadImage(Canvas canvas, Bitmap bitmap){
+        processImage(canvas, bitmap, 1);
+    }
+
+    private void shareImage(Canvas canvas, Bitmap bitmap) {
+        processImage(canvas, bitmap, 2);
+    }
+
+    // Process the active image with
+    // p == 1   download and notify
+    // p == 2   download and share
+    private void processImage(Canvas canvas, Bitmap bitmap, int p){
+        Bitmap savedBitmap = bitmap.copy(bitmap.getConfig(), true);
+        addTagToImage(canvas);
+        if (Build.VERSION.SDK_INT >= 23){
+            // Must first confirm write permission
+            checkWritePermissionAndSaveImage(bitmap, p);
+        }
+        else {
+            saveImage(bitmap, p);
+        }
+        canvas.drawBitmap(savedBitmap,0,0,null);
+
+    }
+
 
     private void addTagToImage(Canvas canvas){
         // Draw Google Play + app tag
@@ -697,7 +689,7 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    private void checkWritePermissionAndSaveImage(Bitmap bitmap){
+    private void checkWritePermissionAndSaveImage(Bitmap bitmap, int p){
         if (ContextCompat.checkSelfPermission(this,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -709,14 +701,18 @@ public class MainActivity extends AppCompatActivity {
 
             // Keep the bitmap pointer for saving after permission has been granted
             tempBmp = bitmap;
+            tempP = p;
 
         } else {
             // Permission has already been granted
-            saveImage(bitmap);
+            saveImage(bitmap, p);
         }
     }
 
-    private void saveImage(Bitmap bitmap){
+    // What to do after saving the image
+    // p == 1   download and notify
+    // p == 2   download and share
+    private void saveImage(Bitmap bitmap, final int p){
         // TODO: Extract string resources
         // Return if external storage not available
         String state = Environment.getExternalStorageState();
@@ -748,34 +744,45 @@ public class MainActivity extends AppCompatActivity {
                     new String[]{"image/jpeg"}, new MediaScannerConnection.OnScanCompletedListener() {
                         @Override
                         public void onScanCompleted(String s, Uri uri) {
-                            // Give a notification here
 
-                            // View image intent
-                            Intent imageIntent = new Intent(Intent.ACTION_VIEW)
-                                    .setDataAndType(uri, "image/*")
-                                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                            if (p==1) {
+                                // Give a notification here
+                                // View image intent
+                                Intent imageIntent = new Intent(Intent.ACTION_VIEW)
+                                        .setDataAndType(uri, "image/*")
+                                        .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 
-                            // Give notification to open saved image
-                            NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(getApplicationContext(), PRIMARY_NOTIF_CHANNEL)
-                                    .setContentTitle(getApplicationContext().getString(R.string.app_name))
-                                    .setContentText("Tap to open your image")
-                                    .setSmallIcon(R.mipmap.gm_icon)
-                                    .setLargeIcon(BitmapFactory.decodeResource(getApplicationContext().getResources(), R.mipmap.gm_icon))
-                                    .setContentIntent(PendingIntent.getActivity(getApplicationContext(), 0, imageIntent, 0))
-                                    .setAutoCancel(true)
-                                    .setVibrate(new long[]{1000, 200})
-                                    .setPriority(NotificationCompat.PRIORITY_LOW);
+                                // Give notification to open saved image
+                                NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(getApplicationContext(), PRIMARY_NOTIF_CHANNEL)
+                                        .setContentTitle(getApplicationContext().getString(R.string.app_name))
+                                        .setContentText("Tap to open your image")
+                                        .setSmallIcon(R.mipmap.gm_icon)
+                                        .setLargeIcon(BitmapFactory.decodeResource(getApplicationContext().getResources(), R.mipmap.gm_icon))
+                                        .setContentIntent(PendingIntent.getActivity(getApplicationContext(), 0, imageIntent, 0))
+                                        .setAutoCancel(true)
+                                        .setVibrate(new long[]{1000, 200})
+                                        .setPriority(NotificationCompat.PRIORITY_LOW);
 
-                            //        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP)
-                            //            notiBuilder.setSmallIcon(R.drawable.nine_png);
+                                //        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP)
+                                //            notiBuilder.setSmallIcon(R.drawable.nine_png);
 
-                            // Issue notification
-                            if (mNotifyMgr != null)
-                                mNotifyMgr.notify(0, notiBuilder.build());
+                                // Issue notification
+                                if (mNotifyMgr != null)
+                                    mNotifyMgr.notify(0, notiBuilder.build());
+                            }
+
+                            else if (p==2){
+                                Intent shareIntent = new Intent(Intent.ACTION_SEND)
+                                        .putExtra(Intent.EXTRA_STREAM, uri);
+                                shareIntent.setType("image/*");
+                                startActivity(Intent.createChooser(shareIntent,
+                                        getResources().getText(R.string.motivation_share)));
+                            }
                         }
                     });
 
-            Toast.makeText(getApplicationContext(), "Image downloaded", Toast.LENGTH_LONG).show();
+            if (p==1)
+                Toast.makeText(getApplicationContext(), "Image saved", Toast.LENGTH_LONG).show();
 
         } catch (IOException e) {
             // Unable to create file, likely because external storage is
@@ -794,7 +801,7 @@ public class MainActivity extends AppCompatActivity {
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     if (tempBmp != null)
-                        saveImage(tempBmp);
+                        saveImage(tempBmp, tempP);
                 } else {
                     //TODO: String extraction
                     Toast.makeText(getApplicationContext(), "Saving images requires this permission", Toast.LENGTH_LONG).show();
@@ -895,27 +902,4 @@ public class MainActivity extends AppCompatActivity {
         }
         return response.toString();
     }
-
-    // BroadcastReceiver to detect if sharing to Facebook
-    private class MotivationReceiver extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            // We can only check for Facebook on SDK 22 and above
-            if (Build.VERSION.SDK_INT >= 22) {
-                ComponentName target = intent.getParcelableExtra(Intent.EXTRA_CHOSEN_COMPONENT);
-                if (target != null) {
-                    if (target.getClassName().contains("facebook")) {
-                        //We cannot send text to Facebook, so copy motivation to clipboard
-                        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-                        ClipData clip = ClipData.newPlainText("Motivation", intent.getStringExtra("Motivation"));
-                        if (clipboard != null)
-                            clipboard.setPrimaryClip(clip);
-                        Toast.makeText(context, context.getResources().getString(R.string.motivation_copied),
-                                Toast.LENGTH_LONG).show();
-                    }
-                }
-            }
-        }
-    }
-
 }
