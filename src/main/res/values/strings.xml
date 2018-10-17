@@ -33,5 +33,10 @@
     <string name="wrong_code">That is not a valid promo code</string>
     <string name="motivation_content_description" translatable="false">Motivation Image</string>
     <string name="motivation_download">Download Image</string>
+    <string name="no_storage">External storage not available</string>
+    <string name="permission_required">Saving images requires this permission</string>
+    <string name="image_open">Tap to open your image</string>
+    <string name="image_saved">Image saved</string>
+    <string name="download_failed">Failed to download</string>
 
 </resources>

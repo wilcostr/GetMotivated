@@ -6,10 +6,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
-import android.content.BroadcastReceiver;
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -39,7 +35,6 @@ import android.os.Bundle;
 import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
-import android.text.SpannedString;
 import android.text.StaticLayout;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -51,7 +46,6 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.github.ivbaranov.mfb.MaterialFavoriteButton;
@@ -121,15 +115,30 @@ public class MainActivity extends AppCompatActivity {
 
         // Create main share preference log
         SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
+        SharedPreferences.Editor editor = mainLog.edit();
 
         // Initialise interstitial ad
         mInterstitialAd = new InterstitialAd(this);
         mInterstitialAd.setAdUnitId(getString(R.string.ad_unit_interstitial));
 
-        //TODO: Load add here, but save the time and display every 2.5min
         mInterstitialAd.loadAd(new AdRequest.Builder()
                 .addTestDevice("5F2995EE0A8305DEB4C48C77461A7362")
                 .build());
+
+        // Don't show ad in the first 2 minutes of activity
+        editor.putLong("ad_time", System.currentTimeMillis());
+        editor.apply();
+
+        // Scroll to top quote after ad is closed
+        mInterstitialAd.setAdListener(new AdListener(){
+            @Override
+            public void onAdClosed(){
+                listview.smoothScrollToPosition(0);
+                mInterstitialAd.loadAd(new AdRequest.Builder()
+                        .addTestDevice("5F2995EE0A8305DEB4C48C77461A7362")
+                        .build());
+            }
+        });
 
         // No banner ad if premium
         adView = findViewById(R.id.adView);
@@ -186,7 +195,6 @@ public class MainActivity extends AppCompatActivity {
             for (String object : favs){
                 if (mainLog.getInt(object.substring(4,14), 0) == 0){
                     Random r = new Random();
-                    SharedPreferences.Editor editor = mainLog.edit();
                     editor.putInt(object.substring(4,14), r.nextInt(IMAGE_NUM+1));
                     editor.apply();
                 }
@@ -303,14 +311,23 @@ public class MainActivity extends AppCompatActivity {
         if (mainLog.getBoolean("premium", false))
             return;
 
-        // Give 3 ad-free screens
+        // Give 3 ad-free screens (2 refreshes)
         if (mainLog.getInt("refreshCount",0)<2)
+            return;
+
+        // Return if two minutes since previous ad / start of session has not passed
+        if (System.currentTimeMillis() - mainLog.getLong("ad_time", 0L) < 2*60*1000)
             return;
 
         if (mInterstitialAd.isLoaded()) {
             mInterstitialAd.show();
+            SharedPreferences.Editor editor = mainLog.edit();
+            editor.putLong("ad_time", System.currentTimeMillis());
+            editor.apply();
         } else {
-            mInterstitialAd.loadAd(new AdRequest.Builder().build());
+            mInterstitialAd.loadAd(new AdRequest.Builder()
+                    .addTestDevice("5F2995EE0A8305DEB4C48C77461A7362")
+                    .build());
         }
     }
 
@@ -319,8 +336,6 @@ public class MainActivity extends AppCompatActivity {
             refreshLayout.setRefreshing(false);
             return;
         }
-        // TODO: This is still broken
-        // Scroll to 0 first, to avoid it not being done
         listview.smoothScrollToPosition(0);
         loadOrShowAd();
 
@@ -668,8 +683,8 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= 21) {
             canvas.drawRoundRect(canvas.getWidth() - gm_tag.getWidth(),
                     canvas.getHeight() - gm_tag.getHeight(),
-                    canvas.getWidth(),
-                    canvas.getHeight(),
+                    canvas.getWidth()+6,
+                    canvas.getHeight()+6,
                     6,
                     6,
                     blockPaint);
@@ -713,11 +728,10 @@ public class MainActivity extends AppCompatActivity {
     // p == 1   download and notify
     // p == 2   download and share
     private void saveImage(Bitmap bitmap, final int p){
-        // TODO: Extract string resources
         // Return if external storage not available
         String state = Environment.getExternalStorageState();
         if (!Environment.MEDIA_MOUNTED.equals(state)) {
-            Toast.makeText(getApplicationContext(), "External storage not available",
+            Toast.makeText(getApplicationContext(), R.string.no_storage,
                     Toast.LENGTH_LONG).show();
             return;
         }
@@ -755,7 +769,7 @@ public class MainActivity extends AppCompatActivity {
                                 // Give notification to open saved image
                                 NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(getApplicationContext(), PRIMARY_NOTIF_CHANNEL)
                                         .setContentTitle(getApplicationContext().getString(R.string.app_name))
-                                        .setContentText("Tap to open your image")
+                                        .setContentText(getApplicationContext().getString(R.string.image_open))
                                         .setSmallIcon(R.mipmap.gm_icon)
                                         .setLargeIcon(BitmapFactory.decodeResource(getApplicationContext().getResources(), R.mipmap.gm_icon))
                                         .setContentIntent(PendingIntent.getActivity(getApplicationContext(), 0, imageIntent, 0))
@@ -782,13 +796,13 @@ public class MainActivity extends AppCompatActivity {
                     });
 
             if (p==1)
-                Toast.makeText(getApplicationContext(), "Image saved", Toast.LENGTH_LONG).show();
+                Toast.makeText(getApplicationContext(), R.string.image_saved, Toast.LENGTH_LONG).show();
 
         } catch (IOException e) {
             // Unable to create file, likely because external storage is
             // not currently mounted.
             e.printStackTrace();
-            Toast.makeText(getApplicationContext(), "Failed to download", Toast.LENGTH_LONG).show();
+            Toast.makeText(getApplicationContext(), R.string.download_failed, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -803,8 +817,7 @@ public class MainActivity extends AppCompatActivity {
                     if (tempBmp != null)
                         saveImage(tempBmp, tempP);
                 } else {
-                    //TODO: String extraction
-                    Toast.makeText(getApplicationContext(), "Saving images requires this permission", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getApplicationContext(), R.string.permission_required, Toast.LENGTH_LONG).show();
                 }
             }
         }

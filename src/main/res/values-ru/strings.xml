@@ -25,5 +25,12 @@
     <string name="motivation_favorite">Избранные</string>
     <string name="favorites">Избранные</string>
     <string name="wrong_code">инвалид</string>
+    <string name="privacy_policy">политика конфиденциальности</string>
+    <string name="motivation_download">Загрузить изображение</string>
+    <string name="no_storage">Внешнее хранилище недоступно</string>
+    <string name="permission_required">Для сохранения изображений требуется это разрешение</string>
+    <string name="image_open">Нажмите, чтобы открыть изображение</string>
+    <string name="image_saved">Сохранено изображение</string>
+    <string name="download_failed">Ошибка загрузки</string>
 
 </resources>
