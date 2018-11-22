@@ -156,6 +156,9 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+
+        //TODO: Image refresh only after text refresh (if possible)
+
         // Create notification channel. No problem if already created previously
         mNotifyMgr = (NotificationManager)getApplicationContext().getSystemService(NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
