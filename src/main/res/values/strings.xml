@@ -13,11 +13,12 @@
     <string name="share">Share App</string>
     <string name="feedback">Feedback</string>
     <string name="refresh">Refresh</string>
+    <string name="store">Store</string>
     <string name="favorites">Favorites</string>
     <string name="privacy_policy">Privacy policy</string>
     <string name="feedback_title">Give Feedback</string>
-    <string name="feedback_msg">We would appreciate your feedback.\n
-        \nPlease consider leaving a review on Google Play if you enjoy using Get\u00A0Motivated.
+    <string name="feedback_msg">Enjoying Get\u00A0Motivated?.\n
+        \nReviews on Google Play can have a massive impact!
     </string>
     <string name="btn_close">Close</string>
     <string name="btn_rate_app">Rate App</string>

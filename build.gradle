@@ -6,7 +6,7 @@ android {
         applicationId "za.co.twinc.getmotivated"
         minSdkVersion 17
         targetSdkVersion 27
-        versionCode 8
+        versionCode 9
         versionName "2.1"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
@@ -27,7 +27,9 @@ dependencies {
     implementation 'com.android.support.constraint:constraint-layout:1.1.3'
     implementation 'com.android.support:cardview-v7:27.1.1'
     implementation 'com.github.ivbaranov:materialfavoritebutton:0.1.4'
-    implementation 'com.google.android.gms:play-services-ads:15.0.1'
+
+    //noinspection GradleCompatible
+    implementation 'com.google.android.gms:play-services-ads:16.0.0'
 
     //This is here because of play-services-ads:15.0.1 still using sdk 26 libs
     implementation 'com.android.support:customtabs:27.1.1'

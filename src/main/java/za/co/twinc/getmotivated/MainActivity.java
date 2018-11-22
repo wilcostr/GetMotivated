@@ -520,135 +520,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
-    private class MySimpleArrayAdapter extends ArrayAdapter<String> {
-        private final String[] values;
-
-        MySimpleArrayAdapter(Context context, String[] values) {
-            super(context, -1, values);
-            this.values = values;
-        }
-
-        @NonNull
-        @Override
-        public View getView(int position, View convertView, @NonNull ViewGroup container) {
-            if (convertView == null) {
-                convertView = getLayoutInflater().inflate(R.layout.motivation_card, container, false);
-            }
-
-            // Build the formatted String
-            SpannableStringBuilder str = new SpannableStringBuilder(values[position]);
-            int separatorIdx = values[position].lastIndexOf('-');
-            if (separatorIdx > -1)
-                str.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
-                        separatorIdx, str.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            final String motivationText = str.toString();
-
-
-            // Get a handle to the image
-            ImageView imageView = convertView.findViewById(R.id.motivation_image);
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inMutable = true;
-
-            // Get the background image
-            final int displayImage;
-            SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
-            if (viewingFavs){
-                displayImage = mainLog.getInt(motivationText.substring(4,14), 2);
-            }
-            else {
-                int refreshCount = mainLog.getInt("refreshCount", 0);
-                displayImage = mainLog.getInt("image" + (DISPLAY_NUM * refreshCount + position) % IMAGE_STACK_SIZE, 1);
-            }
-
-            final Bitmap bitmap;
-            Bitmap bitmap1;
-            try {
-                @SuppressLint("DefaultLocale") Field drawableField =
-                        R.drawable.class.getField(String.format("bg%03d", displayImage));
-                bitmap1 = BitmapFactory.decodeResource(getResources(),
-                        drawableField.getInt(R.drawable.class), options);
-            }
-            catch (Exception e){
-                bitmap1 = BitmapFactory.decodeResource(getResources(), R.drawable.bg001, options);
-            }
-            bitmap = bitmap1;
-            final Canvas canvas = new Canvas(bitmap);
-
-            // Create text layout
-            TextPaint textPaint = new TextPaint();
-            textPaint.setColor(Color.WHITE);
-            textPaint.setTextSize(55);
-            int textPadding = 12;
-            StaticLayout staticLayout = new StaticLayout(str, textPaint, canvas.getWidth()-2*textPadding,
-                    Layout.Alignment.ALIGN_CENTER, 1.0f, 0.0f, false);
-
-            // Extract text relative position parameters. Lift text slightly above centre
-            int textHeight = staticLayout.getHeight() + 2*textPadding;
-            int textTop = ((canvas.getHeight() - textHeight)/2) - 3*textPadding;
-
-            // Draw transparent block behind text
-            Paint blockPaint = new Paint();
-            blockPaint.setColor(Color.BLACK);
-            blockPaint.setAlpha(92);
-            canvas.drawRect(0, textTop, canvas.getWidth(), textTop+textHeight, blockPaint);
-
-            // Draw the text layout
-            canvas.save();
-            canvas.translate(textPadding, textTop+textPadding);
-            staticLayout.draw(canvas);
-            canvas.restore();
-
-            // Set imageView
-            imageView.setImageBitmap(bitmap);
-
-            // Share button
-            ImageButton shareButton = convertView.findViewById(R.id.button_share_motivation);
-            shareButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    shareImage(canvas, bitmap);
-                }
-            });
-
-            // Favorite button
-            MaterialFavoriteButton favoriteButton = convertView.findViewById(R.id.button_favorite_motivation);
-            // onFavoriteClick
-            favoriteButton.setOnFavoriteChangeListener(new MaterialFavoriteButton.OnFavoriteChangeListener() {
-                @Override
-                public void onFavoriteChanged(MaterialFavoriteButton buttonView, boolean favorite) {
-                    SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
-                    SharedPreferences.Editor editor = mainLog.edit();
-                    if (favorite) {
-                        favs.add(motivationText);
-                        editor.putInt(motivationText.substring(4,14), displayImage);
-                    }
-                    else {
-                        favs.remove(motivationText);
-                        editor.remove(motivationText.substring(4,14));
-                    }
-                    editor.putStringSet("favorites", favs);
-                    editor.apply();
-                }
-            });
-            // Flip button according to status of current quote
-            favoriteButton.setFavorite(favs.contains(motivationText));
-
-            // Download button
-            ImageButton downloadButton = convertView.findViewById(R.id.button_download);
-            downloadButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    downloadImage(canvas, bitmap);
-                }
-            });
-
-            return convertView;
-        }
-
-        public int getCount(){ return values.length; }
-    }
-
     private void downloadImage(Canvas canvas, Bitmap bitmap){
         processImage(canvas, bitmap, 1);
     }
@@ -727,9 +598,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // What to do after saving the image
-    // p == 1   download and notify
-    // p == 2   download and share
+    /* What to do after saving the image
+       p == 1   download and notify
+       p == 2   download and share */
     private void saveImage(Bitmap bitmap, final int p){
         // Return if external storage not available
         String state = Environment.getExternalStorageState();
@@ -917,5 +788,161 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return response.toString();
+    }
+
+    private class MySimpleArrayAdapter extends ArrayAdapter<String> {
+        private final String[] values;
+
+        MySimpleArrayAdapter(Context context, String[] values) {
+            super(context, -1, values);
+            this.values = values;
+        }
+
+        @NonNull
+        @Override
+        public View getView(int position, View convertView, @NonNull ViewGroup container) {
+            // The last item is a special global item.
+            if (position == getCount()-1){
+                // -1 above because of zero indexing
+                convertView = getLayoutInflater().inflate(R.layout.bottom_bar, container, false);
+
+                // Rate button
+                ImageButton rateButton = convertView.findViewById(R.id.button_rate);
+                rateButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        feedback();
+                    }
+                });
+
+                // Refresh button
+                ImageButton refreshButton = convertView.findViewById(R.id.button_refresh);
+                refreshButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        refreshQuotes();
+                    }
+                });
+
+                // TODO: Add store button onClick
+
+                return convertView;
+            }
+            // if there is no view or we are recycling the bottom bar
+            else if (convertView == null || convertView.findViewById(R.id.motivation_image) == null) {
+                convertView = getLayoutInflater().inflate(R.layout.motivation_card, container, false);
+            }
+
+            // Build the formatted String
+            SpannableStringBuilder str = new SpannableStringBuilder(values[position]);
+            int separatorIdx = values[position].lastIndexOf('-');
+            if (separatorIdx > -1)
+                str.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                        separatorIdx, str.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            final String motivationText = str.toString();
+
+
+            // Get a handle to the image
+            ImageView imageView = convertView.findViewById(R.id.motivation_image);
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inMutable = true;
+
+            // Get the background image
+            final int displayImage;
+            SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
+            if (viewingFavs){
+                displayImage = mainLog.getInt(motivationText.substring(4,14), 2);
+            }
+            else {
+                int refreshCount = mainLog.getInt("refreshCount", 0);
+                displayImage = mainLog.getInt("image" + (DISPLAY_NUM * refreshCount + position) % IMAGE_STACK_SIZE, 1);
+            }
+
+            final Bitmap bitmap;
+            Bitmap bitmap1;
+            try {
+                @SuppressLint("DefaultLocale") Field drawableField =
+                        R.drawable.class.getField(String.format("bg%03d", displayImage));
+                bitmap1 = BitmapFactory.decodeResource(getResources(),
+                        drawableField.getInt(R.drawable.class), options);
+            }
+            catch (Exception e){
+                bitmap1 = BitmapFactory.decodeResource(getResources(), R.drawable.bg001, options);
+            }
+            bitmap = bitmap1;
+            final Canvas canvas = new Canvas(bitmap);
+
+            // Create text layout
+            TextPaint textPaint = new TextPaint();
+            textPaint.setColor(Color.WHITE);
+            textPaint.setTextSize(55);
+            int textPadding = 12;
+            StaticLayout staticLayout = new StaticLayout(str, textPaint, canvas.getWidth()-2*textPadding,
+                    Layout.Alignment.ALIGN_CENTER, 1.0f, 0.0f, false);
+
+            // Extract text relative position parameters. Lift text slightly above centre
+            int textHeight = staticLayout.getHeight() + 2*textPadding;
+            int textTop = ((canvas.getHeight() - textHeight)/2) - 3*textPadding;
+
+            // Draw transparent block behind text
+            Paint blockPaint = new Paint();
+            blockPaint.setColor(Color.BLACK);
+            blockPaint.setAlpha(92);
+            canvas.drawRect(0, textTop, canvas.getWidth(), textTop+textHeight, blockPaint);
+
+            // Draw the text layout
+            canvas.save();
+            canvas.translate(textPadding, textTop+textPadding);
+            staticLayout.draw(canvas);
+            canvas.restore();
+
+            // Set imageView
+            imageView.setImageBitmap(bitmap);
+
+            // Share button
+            ImageButton shareButton = convertView.findViewById(R.id.button_share_motivation);
+            shareButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    shareImage(canvas, bitmap);
+                }
+            });
+
+            // Favorite button
+            MaterialFavoriteButton favoriteButton = convertView.findViewById(R.id.button_favorite_motivation);
+            // onFavoriteClick
+            favoriteButton.setOnFavoriteChangeListener(new MaterialFavoriteButton.OnFavoriteChangeListener() {
+                @Override
+                public void onFavoriteChanged(MaterialFavoriteButton buttonView, boolean favorite) {
+                    SharedPreferences mainLog = getSharedPreferences(MAIN_PREFS, 0);
+                    SharedPreferences.Editor editor = mainLog.edit();
+                    if (favorite) {
+                        favs.add(motivationText);
+                        editor.putInt(motivationText.substring(4,14), displayImage);
+                    }
+                    else {
+                        favs.remove(motivationText);
+                        editor.remove(motivationText.substring(4,14));
+                    }
+                    editor.putStringSet("favorites", favs);
+                    editor.apply();
+                }
+            });
+            // Flip button according to status of current quote
+            favoriteButton.setFavorite(favs.contains(motivationText));
+
+            // Download button
+            ImageButton downloadButton = convertView.findViewById(R.id.button_download);
+            downloadButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    downloadImage(canvas, bitmap);
+                }
+            });
+
+            return convertView;
+        }
+
+        public int getCount(){ return values.length + 1; }
     }
 }
