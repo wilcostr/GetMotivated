@@ -11,6 +11,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -824,7 +825,12 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
-                // TODO: Add store button onClick
+                // TODO: Add store button functionality and remove refresh color override
+                if (Build.VERSION.SDK_INT >= 21)
+                    refreshButton.setImageTintList(ColorStateList.valueOf(getResources().getColor(R.color.colorAccent)));
+                // Store button
+                ImageButton storeButton = convertView.findViewById(R.id.button_store);
+                storeButton.setVisibility(View.GONE);
 
                 return convertView;
             }
